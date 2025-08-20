@@ -120,8 +120,8 @@ impl CircularBuffer {
     pub fn read(&mut self, buf: &mut [u8]) -> usize {
         let to_read = std::cmp::min(buf.len(), self.size);
         
-        for i in 0..to_read {
-            buf[i] = self.buffer[self.read_pos];
+        for byte in buf.iter_mut().take(to_read) {
+            *byte = self.buffer[self.read_pos];
             self.read_pos = (self.read_pos + 1) % self.buffer.len();
         }
         

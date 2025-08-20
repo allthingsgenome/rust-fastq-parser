@@ -145,14 +145,19 @@ impl<R: Read + Send + 'static> AsyncStreamingReader<R> {
             channel_size,
         }
     }
+}
+
+impl<R: Read + Send + 'static> IntoIterator for AsyncStreamingReader<R> {
+    type Item = Result<OwnedRecord>;
+    type IntoIter = ReceiverIterator;
     
-    pub fn into_iter(self) -> impl Iterator<Item = Result<OwnedRecord>> {
+    fn into_iter(self) -> Self::IntoIter {
         let (sender, receiver) = std::sync::mpsc::sync_channel(self.channel_size);
         
         std::thread::spawn(move || {
-            let mut stream = StreamingReader::with_capacity(self.buffer_size, self.reader);
+            let stream = StreamingReader::with_capacity(self.buffer_size, self.reader);
             
-            while let Some(result) = stream.next() {
+            for result in stream {
                 if sender.send(result).is_err() {
                     break;
                 }
@@ -163,7 +168,7 @@ impl<R: Read + Send + 'static> AsyncStreamingReader<R> {
     }
 }
 
-struct ReceiverIterator {
+pub struct ReceiverIterator {
     receiver: std::sync::mpsc::Receiver<Result<OwnedRecord>>,
 }
 

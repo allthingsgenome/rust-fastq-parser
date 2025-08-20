@@ -129,7 +129,7 @@ impl<'a> Record<'a> {
         }
         
         for &qual in self.qual {
-            if qual < b'!' || qual > b'~' {
+            if !(b'!'..=b'~').contains(&qual) {
                 return Err(crate::error::FastqError::InvalidQuality { qual });
             }
         }
@@ -165,7 +165,7 @@ impl<'a> fmt::Display for Record<'a> {
         if let Some(desc) = self.desc_str() {
             write!(f, " {}", desc.map_err(|_| fmt::Error)?)?;
         }
-        write!(f, "\n")?;
+        writeln!(f)?;
         f.write_str(self.seq_str().map_err(|_| fmt::Error)?)?;
         write!(f, "\n+\n")?;
         f.write_str(self.qual_str().map_err(|_| fmt::Error)?)?;

@@ -111,7 +111,7 @@ struct OwnedRecordIterator {
 impl OwnedRecordIterator {
     fn new(mmap: Mmap) -> Self {
         let data = unsafe { std::slice::from_raw_parts(mmap.as_ptr(), mmap.len()) };
-        let parser = Box::new(Parser::new(unsafe { std::mem::transmute(data) }));
+        let parser = Box::new(Parser::new(unsafe { std::mem::transmute::<&[u8], &[u8]>(data) }));
         OwnedRecordIterator {
             _mmap: mmap,
             parser: Box::into_raw(parser),

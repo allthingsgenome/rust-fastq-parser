@@ -21,6 +21,9 @@ fn has_avx2() -> bool {
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
 #[inline]
+/// # Safety
+/// This function requires AVX2 instruction set to be available on the CPU.
+/// The caller must ensure that AVX2 is supported before calling this function.
 pub unsafe fn find_newlines_avx2(data: &[u8]) -> Vec<usize> {
     let mut positions = Vec::new();
     let newline = _mm256_set1_epi8(b'\n' as i8);
@@ -57,6 +60,9 @@ pub unsafe fn find_newlines_avx2(data: &[u8]) -> Vec<usize> {
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
 #[inline]
+/// # Safety
+/// This function requires AVX2 instruction set to be available on the CPU.
+/// The caller must ensure that AVX2 is supported before calling this function.
 pub unsafe fn validate_ascii_avx2(data: &[u8]) -> bool {
     let max_ascii = _mm256_set1_epi8(127);
     
@@ -78,6 +84,9 @@ pub unsafe fn validate_ascii_avx2(data: &[u8]) -> bool {
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
 #[inline]
+/// # Safety
+/// This function requires AVX2 instruction set to be available on the CPU.
+/// The caller must ensure that AVX2 is supported before calling this function.
 pub unsafe fn count_chars_avx2(data: &[u8], target: u8) -> usize {
     let mut count = 0;
     let target_vec = _mm256_set1_epi8(target as i8);
@@ -138,6 +147,9 @@ pub fn count_chars(data: &[u8], target: u8) -> usize {
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
 #[inline]
+/// # Safety
+/// This function requires AVX2 instruction set to be available on the CPU.
+/// The caller must ensure that AVX2 is supported before calling this function.
 pub unsafe fn find_char_avx2(data: &[u8], target: u8, start: usize) -> Option<usize> {
     let target_vec = _mm256_set1_epi8(target as i8);
     let slice = &data[start..];

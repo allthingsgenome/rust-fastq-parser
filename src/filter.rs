@@ -95,8 +95,8 @@ impl QualityFilter {
         let mut start = 0;
         let mut window_sum: usize = 0;
         
-        for i in 0..self.window_size.min(scores.len()) {
-            window_sum += scores[i] as usize;
+        for score in scores.iter().take(self.window_size.min(scores.len())) {
+            window_sum += *score as usize;
         }
         
         while start + self.window_size <= scores.len() {
@@ -115,14 +115,10 @@ impl QualityFilter {
         let mut end = scores.len();
         window_sum = 0;
         
-        let start_pos = if end >= self.window_size {
-            end - self.window_size
-        } else {
-            0
-        };
+        let start_pos = end.saturating_sub(self.window_size);
         
-        for i in start_pos..end {
-            window_sum += scores[i] as usize;
+        for score in scores.iter().take(end).skip(start_pos) {
+            window_sum += *score as usize;
         }
         
         while end > start + self.window_size {
@@ -242,6 +238,12 @@ pub struct FilterStats {
     pub trimmed_reads: usize,
     pub adapter_trimmed: usize,
     pub total_bases_removed: usize,
+}
+
+impl Default for FilterStats {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl FilterStats {

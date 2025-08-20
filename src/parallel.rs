@@ -377,6 +377,12 @@ pub struct ProcessingStats {
     pub total_quality: f64,
 }
 
+impl Default for ProcessingStats {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProcessingStats {
     pub fn new() -> Self {
         ProcessingStats {
@@ -426,8 +432,8 @@ impl ParallelFilterProcessor {
         let stats = Arc::new(Mutex::new(ProcessingStats::new()));
         
         let reader_thread = thread::spawn(move || {
-            let mut reader = crate::stream::StreamingReader::new(input);
-            while let Some(result) = reader.next() {
+            let reader = crate::stream::StreamingReader::new(input);
+            for result in reader {
                 match result {
                     Ok(record) => {
                         if input_sender.send(record).is_err() {
