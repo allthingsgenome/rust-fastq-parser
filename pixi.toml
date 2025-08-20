@@ -1,0 +1,30 @@
+[project]
+name = "fastq-parser"
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-64", "osx-arm64", "win-64"]
+
+[dependencies]
+rust = ">=1.75"
+pkg-config = "*"
+cmake = "*"
+git = "*"
+
+[tasks]
+build = "cargo build --release"
+test = "cargo test"
+bench = "cargo bench"
+run = "cargo run --release"
+check = "cargo check"
+fmt = "cargo fmt"
+clippy = "cargo clippy -- -D warnings"
+
+[feature.dev.dependencies]
+hyperfine = "*"
+
+[feature.dev.target.linux-64.dependencies]
+valgrind = "*"
+perf = "*"
+
+[environments]
+default = { features = [], solve-group = "default" }
+dev = { features = ["dev"], solve-group = "default" }

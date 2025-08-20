@@ -1,0 +1,114 @@
+# Rust build artifacts
+/target/
+target/
+Cargo.lock
+
+# Debug artifacts
+*.pdb
+
+# Backup files
+*.rs.bk
+*.orig
+*.swp
+*.swo
+*~
+
+# IDE and editor files
+.idea/
+*.iml
+.vscode/
+*.code-workspace
+*.sublime-project
+*.sublime-workspace
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+*.lnk
+
+# Linux
+.directory
+.Trash-*
+.nfs*
+
+# Profiling
+*.profraw
+*.profdata
+perf.data
+perf.data.old
+flamegraph.svg
+callgrind.out.*
+
+# Documentation
+/doc/
+!doc/images/
+
+# Test coverage
+*.gcno
+*.gcda
+*.gcov
+tarpaulin-report.html
+cobertura.xml
+lcov.info
+
+# Benchmarking
+criterion/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# Dependencies (for workspace projects)
+node_modules/
+
+# Python virtual environments (for mixed projects)
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Build scripts artifacts
+build/
+dist/
+out/

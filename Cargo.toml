@@ -1,0 +1,34 @@
+[package]
+name = "fastq-parser"
+version = "0.1.0"
+edition = "2021"
+authors = ["FastQ Parser"]
+description = "Exceptionally fast and elegant FASTQ parser"
+license = "MIT"
+
+[dependencies]
+memchr = "2.7"
+memmap2 = "0.9"
+flate2 = "1.0"
+byteorder = "1.5"
+thiserror = "1.0"
+crossbeam-channel = "0.5"
+rayon = "1.8"
+
+[dev-dependencies]
+criterion = "0.5"
+tempfile = "3.9"
+proptest = "1.4"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+debug = false
+
+[profile.bench]
+inherits = "release"
+
+[[bench]]
+name = "parser_bench"
+harness = false
