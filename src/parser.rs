@@ -186,23 +186,6 @@ impl<'a> Parser<'a> {
     }
     
     #[inline]
-    fn trim_whitespace(data: &[u8]) -> &[u8] {
-        // Fast path for common case: no leading whitespace
-        if data.is_empty() || !data[0].is_ascii_whitespace() {
-            // Just find the end
-            let end = data.iter().rposition(|&b| !b.is_ascii_whitespace())
-                .map(|i| i + 1)
-                .unwrap_or(0);
-            return &data[..end];
-        }
-        
-        // Full trim needed
-        let start = data.iter().position(|&b| !b.is_ascii_whitespace()).unwrap_or(0);
-        let end = data.iter().rposition(|&b| !b.is_ascii_whitespace()).map(|i| i + 1).unwrap_or(0);
-        &data[start..end]
-    }
-    
-    #[inline]
     fn parse_header(header: &[u8]) -> Result<(&[u8], Option<&[u8]>)> {
         // Use SIMD-accelerated character search
         if let Some(space_pos) = crate::simd::find_char(header, b' ', 0) {
