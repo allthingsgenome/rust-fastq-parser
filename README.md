@@ -1,6 +1,6 @@
 # FASTQ Parser - High-Performance FASTQ File Parser in Rust
 
-A blazingly fast, feature-rich FASTQ parser written in Rust with SIMD vectorization, memory-mapped I/O, and parallel processing capabilities.
+A blazingly fast fastq parser written in Rust with SIMD vectorization, memory-mapped I/O, and parallel processing capabilities.
 
 ## Table of Contents
 
