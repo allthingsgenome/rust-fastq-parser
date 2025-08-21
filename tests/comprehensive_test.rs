@@ -115,7 +115,7 @@ IIIIIIIIIIIIIIII
 
     assert_eq!(record.id, b"SEQ_ID");
     assert_eq!(record.desc, Some(&b"description"[..]));
-    assert!(record.seq.len() > 0);
+    assert!(!record.seq.is_empty());
     assert_eq!(record.seq.len(), record.qual.len());
 
     Ok(())
