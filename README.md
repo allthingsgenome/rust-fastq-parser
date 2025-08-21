@@ -220,6 +220,52 @@ pool.return(buffer);
 
 ## Advanced Usage
 
+### Builder Patterns
+
+Configure readers and parsers with builder patterns:
+
+```rust
+use fastq_parser::{FastqReaderBuilder, ParserBuilder};
+
+// Configure reader with custom settings
+let reader = FastqReaderBuilder::new()
+    .buffer_size(64 * 1024)
+    .validate_paired(true)
+    .strict_mode(false)
+    .build("input.fastq")?;
+
+// Configure parser with specific options
+let parser = ParserBuilder::new()
+    .max_record_size(10_000)
+    .allow_truncated(false)
+    .quality_encoding(QualityEncoding::Sanger)
+    .build(data)?;
+```
+
+### Advanced Streaming
+
+Process large files with advanced streaming options:
+
+```rust
+use fastq_parser::{AsyncStreamingReader, ChunkedStreamer};
+
+// Asynchronous streaming for concurrent I/O
+let async_reader = AsyncStreamingReader::new("huge.fastq")?;
+while let Some(record) = async_reader.next_async().await? {
+    // Process with async I/O
+}
+
+// Chunked streaming with configurable chunk size
+let chunked = ChunkedStreamer::new("huge.fastq")?
+    .chunk_size(1024 * 1024)  // 1MB chunks
+    .prefetch(true);
+
+for chunk in chunked.chunks() {
+    let records = chunk?;
+    // Process chunk of records
+}
+```
+
 ### Zero-Copy Parsing
 
 Minimize allocations with zero-copy techniques:
@@ -271,7 +317,7 @@ while let Some(record) = reader.next_record()? {
 Handle paired-end sequencing data:
 
 ```rust
-use fastq_parser::PairedEndReader;
+use fastq_parser::{PairedEndReader, InterleavedReader};
 
 // Process R1/R2 file pairs
 let paired_reader = PairedEndReader::from_paths("R1.fastq", "R2.fastq")?;
@@ -280,6 +326,14 @@ for pair_result in paired_reader.into_paired_records() {
     let (r1, r2) = pair_result?;
     // Process paired reads together
 }
+
+// Process interleaved FASTQ files (R1/R2 alternating)
+let interleaved = InterleavedReader::from_path("interleaved.fastq")?;
+
+for pair_result in interleaved.into_paired_records() {
+    let (r1, r2) = pair_result?;
+    // Process alternating paired reads
+}
 ```
 
 ### Advanced Filtering
@@ -287,8 +341,9 @@ for pair_result in paired_reader.into_paired_records() {
 Filter reads based on multiple criteria:
 
 ```rust
-use fastq_parser::AdvancedFilter;
+use fastq_parser::{AdvancedFilter, QualityFilter, AdapterTrimmer};
 
+// Content-based filtering
 let filter = AdvancedFilter::new()
     .min_length(50)
     .max_length(300)
@@ -299,6 +354,24 @@ let filter = AdvancedFilter::new()
 if filter.filter(&record) {
     // Process passing reads
 }
+
+// Quality-based filtering and trimming
+let quality_filter = QualityFilter::new()
+    .min_quality(20.0)
+    .min_length(50)
+    .trim_quality(Some(20));
+
+// Filter and trim low-quality ends
+if let Some(trimmed) = quality_filter.trim(&record) {
+    // Process trimmed read
+}
+
+// Adapter trimming
+let adapter_trimmer = AdapterTrimmer::new(vec![b"AGATCGGAAGAG".to_vec()])
+    .min_overlap(6)
+    .error_rate(0.1);
+
+let trimmed_record = adapter_trimmer.trim(&record);
 ```
 
 ### Barcode Processing
@@ -306,14 +379,29 @@ if filter.filter(&record) {
 Demultiplex and process barcoded reads:
 
 ```rust
-use fastq_parser::{BarcodeConfig, Demultiplexer};
+use fastq_parser::{BarcodeConfig, Demultiplexer, UmiDeduplicator, BarcodeCorrector};
 
+// Configure barcode extraction
 let config = BarcodeConfig::new(0, 8)  // 8bp barcode at position 0
     .with_umi(8, 10)  // 10bp UMI at position 8
     .max_mismatches(1);
 
+// Demultiplex by barcode
 let demux = Demultiplexer::new(config, barcode_map);
 let stats = demux.demultiplex_to_files(records, "output/", "sample")?;
+
+// UMI deduplication
+let deduplicator = UmiDeduplicator::new()
+    .min_quality(20)
+    .max_distance(1);
+
+let unique_reads = deduplicator.deduplicate(records)?;
+
+// Barcode error correction
+let corrector = BarcodeCorrector::new(known_barcodes)
+    .max_distance(2);
+
+let corrected_barcode = corrector.correct(observed_barcode);
 ```
 
 ### Index-Based Random Access
@@ -321,7 +409,7 @@ let stats = demux.demultiplex_to_files(records, "output/", "sample")?;
 Create and use an index for O(1) read lookup:
 
 ```rust
-use fastq_parser::{FastqIndex, IndexedReader};
+use fastq_parser::{FastqIndex, IndexedReader, RandomAccessReader};
 
 // Build index
 let index = FastqIndex::build("reads.fastq")?;
@@ -329,7 +417,73 @@ index.save("reads.fqi")?;
 
 // Use index for random access
 let reader = IndexedReader::from_paths("reads.fastq", "reads.fqi")?;
-let record = reader.get_record("READ_ID_12345")?;
+let record = reader.get_record("READ_ID_12345");  // Returns Option<Record>
+
+// Alternative: RandomAccessReader for position-based access
+let random_reader = RandomAccessReader::new("reads.fastq")?;
+let record_at_pos = random_reader.get_by_position(1000)?;  // Get 1000th record
+let records_range = random_reader.get_range(100, 200)?;  // Get records 100-200
+```
+
+### Format Conversion and Writing
+
+Convert between formats and write filtered subsets:
+
+```rust
+use fastq_parser::{FastqWriter, FastaWriter, FormatConverter, SubsetExtractor};
+
+// Write FASTQ records (with automatic gzip if .gz extension)
+let mut writer = FastqWriter::to_file("output.fastq.gz")?;
+writer.write_record(&record)?;
+
+// Write FASTA format
+let mut fasta_writer = FastaWriter::to_file("output.fasta")?;
+fasta_writer.write_record(&record)?;
+
+// Batch format conversion
+let count = FormatConverter::fastq_to_fasta("input.fastq", "output.fasta")?;
+
+// Extract subset based on ID list
+let ids = vec!["READ1", "READ2", "READ3"];
+let extracted = SubsetExtractor::extract_by_ids("input.fastq", "subset.fastq", &ids)?;
+
+// Filter and write in one operation
+let (total, passed) = FormatConverter::filter_and_write(
+    "input.fastq",
+    "filtered.fastq",
+    |record| record.len() >= 100 && record.mean_quality() >= 20.0
+)?;
+```
+
+### Quality Metrics and Analysis
+
+Compute comprehensive quality metrics:
+
+```rust
+use fastq_parser::{QualityMetrics, ErrorDetector, QualityPlotter};
+
+// Collect quality metrics
+let mut metrics = QualityMetrics::new();
+for record in reader.into_records() {
+    let mut rec = record?;
+    metrics.update(&mut rec);
+}
+metrics.finalize();
+
+// Get position-specific quality statistics
+let position_stats = metrics.position_quality_stats();
+let duplicate_rate = metrics.duplicate_rate();
+
+// Detect sequencing errors
+let detector = ErrorDetector::new()
+    .kmer_size(5)
+    .error_threshold(0.001);
+
+let error_kmers = detector.detect_errors(&records)?;
+
+// Generate quality plots (if plotting enabled)
+let plotter = QualityPlotter::new();
+plotter.plot_quality_distribution(&metrics, "quality_plot.png")?;
 
 ## Examples
 
@@ -447,12 +601,12 @@ Complete API documentation is organized by module:
 | **[buffer](./docs/buffer.md)** | Buffer management | [📖 Docs](./docs/buffer.md) |
 | **[error](./docs/error.md)** | Error handling | [📖 Docs](./docs/error.md) |
 | **[mmap](./docs/mmap.md)** | Memory-mapped I/O | [📖 Docs](./docs/mmap.md) |
-| **paired** | Paired-end read handling | Module Docs |
-| **writer** | FASTQ/FASTA writing & conversion | Module Docs |
-| **filter** | Advanced read filtering | Module Docs |
-| **index** | Index-based random access | Module Docs |
-| **barcode** | Barcode/UMI processing | Module Docs |
-| **metrics** | Quality metrics & analysis | Module Docs |
+| **[paired](./docs/paired.md)** | Paired-end read handling | [📖 Docs](./docs/paired.md) |
+| **[writer](./docs/writer.md)** | FASTQ/FASTA writing & conversion | [📖 Docs](./docs/writer.md) |
+| **[filter](./docs/filter.md)** | Advanced read filtering | [📖 Docs](./docs/filter.md) |
+| **[index](./docs/index.md)** | Index-based random access | [📖 Docs](./docs/index.md) |
+| **[barcode](./docs/barcode.md)** | Barcode/UMI processing | [📖 Docs](./docs/barcode.md) |
+| **[metrics](./docs/metrics.md)** | Quality metrics & analysis | [📖 Docs](./docs/metrics.md) |
 
 ### Quick Links to Key Types
 
