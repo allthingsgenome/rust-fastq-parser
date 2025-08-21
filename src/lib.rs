@@ -1,29 +1,31 @@
+pub mod barcode;
+pub mod buffer;
 pub mod error;
-pub mod record;
+pub mod filter;
+pub mod index;
+pub mod metrics;
+pub mod paired;
+pub mod parallel;
 pub mod parser;
 pub mod reader;
-pub mod buffer;
+pub mod record;
 pub mod simd;
-pub mod parallel;
-pub mod filter;
 pub mod stream;
-pub mod paired;
 pub mod writer;
-pub mod index;
-pub mod barcode;
-pub mod metrics;
 
+pub use barcode::{
+    BarcodeConfig, BarcodeCorrector, BarcodeExtractor, Demultiplexer, UmiDeduplicator,
+};
 pub use error::{FastqError, Result};
-pub use record::{Record, QualityEncoding, OwnedRecord};
+pub use filter::{AdapterTrimmer, AdvancedFilter, FilterStats, QualityFilter};
+pub use index::{FastqIndex, IndexedReader, RandomAccessReader};
+pub use metrics::{ErrorDetector, QualityMetrics, QualityPlotter};
+pub use paired::{InterleavedReader, PairedEndReader};
 pub use parser::{Parser, ParserBuilder};
 pub use reader::{FastqReader, FastqReaderBuilder};
-pub use filter::{QualityFilter, AdapterTrimmer, FilterStats, AdvancedFilter};
-pub use stream::{StreamingReader, AsyncStreamingReader, ChunkedStreamer};
-pub use paired::{PairedEndReader, InterleavedReader};
-pub use writer::{FastqWriter, FastaWriter, FormatConverter, SubsetExtractor};
-pub use index::{FastqIndex, IndexedReader, RandomAccessReader};
-pub use barcode::{BarcodeConfig, BarcodeExtractor, Demultiplexer, UmiDeduplicator, BarcodeCorrector};
-pub use metrics::{QualityMetrics, ErrorDetector, QualityPlotter};
+pub use record::{OwnedRecord, QualityEncoding, Record};
+pub use stream::{AsyncStreamingReader, ChunkedStreamer, StreamingReader};
+pub use writer::{FastaWriter, FastqWriter, FormatConverter, SubsetExtractor};
 
 #[cfg(test)]
 mod tests {

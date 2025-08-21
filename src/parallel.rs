@@ -1,9 +1,14 @@
-use crate::{error::Result, parser::Parser, record::{OwnedRecord, Record}, filter::QualityFilter};
+use crate::{
+    error::Result,
+    filter::QualityFilter,
+    parser::Parser,
+    record::{OwnedRecord, Record},
+};
 use crossbeam_channel::{bounded, Sender};
 use rayon::prelude::*;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 const CHUNK_SIZE: usize = 1024 * 1024;
 const QUEUE_SIZE: usize = 100;
@@ -21,28 +26,28 @@ impl ParallelParser {
             num_threads,
         }
     }
-    
+
     pub fn with_threads(data: Vec<u8>, num_threads: usize) -> Self {
         ParallelParser {
             data: Arc::new(data),
             num_threads,
         }
     }
-    
+
     pub fn parse(&self) -> Result<Vec<OwnedRecord>> {
         let chunks = self.find_record_boundaries();
-        
+
         chunks
             .par_iter()
             .map(|&(start, end)| {
                 let slice = &self.data[start..end];
                 let parser = Parser::new(slice);
                 let mut records = Vec::new();
-                
+
                 for record in parser {
                     records.push(OwnedRecord::from_record(&record));
                 }
-                
+
                 Ok(records)
             })
             .try_fold(Vec::new, |mut acc, chunk_result| {
@@ -56,35 +61,35 @@ impl ParallelParser {
                 Ok(acc)
             })
     }
-    
+
     pub fn parse_with_callback<F>(&self, callback: F) -> Result<()>
     where
         F: Fn(OwnedRecord) + Send + Sync,
     {
         let chunks = self.find_record_boundaries();
-        
+
         chunks.par_iter().try_for_each(|&(start, end)| {
             let slice = &self.data[start..end];
             let parser = Parser::new(slice);
-            
+
             for record in parser {
                 callback(OwnedRecord::from_record(&record));
             }
-            
+
             Ok(())
         })
     }
-    
+
     pub fn parse_streaming(&self) -> crossbeam_channel::Receiver<Result<OwnedRecord>> {
         let (sender, receiver) = bounded(1000);
         let data = Arc::clone(&self.data);
         let chunks = self.find_record_boundaries();
-        
+
         thread::spawn(move || {
             chunks.par_iter().for_each(|&(start, end)| {
                 let slice = &data[start..end];
                 let parser = Parser::new(slice);
-                
+
                 for record in parser {
                     let owned = OwnedRecord::from_record(&record);
                     if sender.send(Ok(owned)).is_err() {
@@ -93,25 +98,25 @@ impl ParallelParser {
                 }
             });
         });
-        
+
         receiver
     }
-    
+
     fn find_record_boundaries(&self) -> Vec<(usize, usize)> {
         let mut boundaries = Vec::new();
         let data = &*self.data;
         let len = data.len();
-        
+
         if len == 0 {
             return boundaries;
         }
-        
+
         let chunk_size = (len / self.num_threads).max(CHUNK_SIZE);
         let mut start = 0;
-        
+
         while start < len {
             let mut end = (start + chunk_size).min(len);
-            
+
             if end < len {
                 // Use SIMD to find the next record boundary
                 while end < len {
@@ -135,7 +140,7 @@ impl ParallelParser {
                 break;
             }
         }
-        
+
         boundaries
     }
 }
@@ -158,24 +163,24 @@ impl ChunkedProcessor {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     pub fn chunk_size(mut self, size: usize) -> Self {
         self.chunk_size = size;
         self
     }
-    
+
     pub fn buffer_size(mut self, size: usize) -> Self {
         self.buffer_size = size;
         self
     }
-    
+
     pub fn process<F>(&self, data: &[u8], processor: F) -> Result<()>
     where
         F: Fn(&OwnedRecord) -> Result<()> + Send + Sync + 'static,
     {
         let (sender, receiver) = bounded(self.buffer_size);
         let processor = Arc::new(processor);
-        
+
         let handle = thread::spawn({
             let processor = Arc::clone(&processor);
             move || {
@@ -186,20 +191,20 @@ impl ChunkedProcessor {
                 }
             }
         });
-        
+
         self.parse_chunks(data, sender)?;
-        
+
         handle.join().unwrap();
         Ok(())
     }
-    
+
     fn parse_chunks(&self, data: &[u8], sender: Sender<OwnedRecord>) -> Result<()> {
         let mut pos = 0;
-        
+
         while pos < data.len() {
             let end = self.find_chunk_end(data, pos);
             let chunk = &data[pos..end];
-            
+
             let parser = Parser::new(chunk);
             for record in parser {
                 let owned = OwnedRecord::from_record(&record);
@@ -207,32 +212,32 @@ impl ChunkedProcessor {
                     break;
                 }
             }
-            
+
             pos = end;
         }
-        
+
         Ok(())
     }
-    
+
     fn find_chunk_end(&self, data: &[u8], start: usize) -> usize {
         let mut end = (start + self.chunk_size).min(data.len());
-        
+
         if end >= data.len() {
             return data.len();
         }
-        
+
         while end < data.len() && data[end] != b'@' {
             end += 1;
         }
-        
+
         if end < data.len() && end > 0 && data[end - 1] == b'\n' {
             return end;
         }
-        
+
         while end < data.len() && data[end] != b'\n' {
             end += 1;
         }
-        
+
         if end < data.len() {
             end + 1
         } else {
@@ -248,7 +253,7 @@ pub struct ParallelProcessor<F> {
     progress: Arc<AtomicUsize>,
 }
 
-impl<F> ParallelProcessor<F> 
+impl<F> ParallelProcessor<F>
 where
     F: Fn(OwnedRecord) -> Result<()> + Send + Sync + 'static,
 {
@@ -260,7 +265,7 @@ where
             progress: Arc::new(AtomicUsize::new(0)),
         }
     }
-    
+
     pub fn with_threads(processor: F, num_threads: usize) -> Self {
         ParallelProcessor {
             processor: Arc::new(processor),
@@ -269,22 +274,22 @@ where
             progress: Arc::new(AtomicUsize::new(0)),
         }
     }
-    
+
     pub fn process_file(&self, data: &[u8]) -> Result<ProcessingStats> {
         let (sender, receiver) = bounded(QUEUE_SIZE);
         let processor = Arc::clone(&self.processor);
         let progress = Arc::clone(&self.progress);
-        
+
         let stats = Arc::new(Mutex::new(ProcessingStats::new()));
         let stats_clone = Arc::clone(&stats);
-        
+
         let workers: Vec<_> = (0..self.num_threads)
             .map(|_| {
                 let receiver = receiver.clone();
                 let processor = Arc::clone(&processor);
                 let progress = Arc::clone(&progress);
                 let stats = Arc::clone(&stats_clone);
-                
+
                 thread::spawn(move || {
                     while let Ok(record) = receiver.recv() {
                         match processor(record) {
@@ -300,55 +305,58 @@ where
                 })
             })
             .collect();
-        
+
         self.parse_and_send(data, sender)?;
-        
+
         for worker in workers {
             worker.join().unwrap();
         }
-        
+
         let final_stats = stats.lock().unwrap().clone();
         Ok(final_stats)
     }
-    
+
     fn parse_and_send(&self, data: &[u8], sender: Sender<OwnedRecord>) -> Result<()> {
         let chunks = self.split_into_chunks(data);
-        
+
         chunks.par_iter().try_for_each(|&(start, end)| {
             let slice = &data[start..end];
             let parser = Parser::new(slice);
-            
+
             for record in parser {
                 let owned = OwnedRecord::from_record(&record);
-                sender.send(owned).map_err(|_| crate::error::FastqError::Io(
-                    std::io::Error::new(std::io::ErrorKind::BrokenPipe, "Channel closed")
-                ))?;
+                sender.send(owned).map_err(|_| {
+                    crate::error::FastqError::Io(std::io::Error::new(
+                        std::io::ErrorKind::BrokenPipe,
+                        "Channel closed",
+                    ))
+                })?;
             }
-            
+
             Ok(())
         })
     }
-    
+
     fn split_into_chunks(&self, data: &[u8]) -> Vec<(usize, usize)> {
         let mut chunks = Vec::new();
         let mut pos = 0;
-        
+
         while pos < data.len() {
             let end = self.find_chunk_boundary(data, pos, self.chunk_size);
             chunks.push((pos, end));
             pos = end;
         }
-        
+
         chunks
     }
-    
+
     fn find_chunk_boundary(&self, data: &[u8], start: usize, target_size: usize) -> usize {
         let mut end = (start + target_size).min(data.len());
-        
+
         if end >= data.len() {
             return data.len();
         }
-        
+
         // Use SIMD to find record boundary
         while end < data.len() {
             if let Some(at_pos) = crate::simd::find_char(data, b'@', end) {
@@ -360,10 +368,10 @@ where
                 break;
             }
         }
-        
+
         data.len()
     }
-    
+
     pub fn get_progress(&self) -> usize {
         self.progress.load(Ordering::Relaxed)
     }
@@ -392,15 +400,20 @@ impl ProcessingStats {
             total_quality: 0.0,
         }
     }
-    
+
     pub fn print_summary(&self) {
         println!("Processing Statistics:");
         println!("  Processed: {} records", self.processed);
         println!("  Failed: {} records", self.failed);
-        println!("  Success rate: {:.2}%", 
-                 (self.processed as f64 / (self.processed + self.failed) as f64) * 100.0);
+        println!(
+            "  Success rate: {:.2}%",
+            (self.processed as f64 / (self.processed + self.failed) as f64) * 100.0
+        );
         if self.processed > 0 {
-            println!("  Average quality: {:.2}", self.total_quality / self.processed as f64);
+            println!(
+                "  Average quality: {:.2}",
+                self.total_quality / self.processed as f64
+            );
         }
     }
 }
@@ -417,20 +430,18 @@ impl ParallelFilterProcessor {
             num_workers: rayon::current_num_threads(),
         }
     }
-    
-    pub fn process<R, W>(&self, 
-                        input: R, 
-                        output: W) -> Result<ProcessingStats>
+
+    pub fn process<R, W>(&self, input: R, output: W) -> Result<ProcessingStats>
     where
         R: std::io::Read + Send + 'static,
         W: std::io::Write + Send + 'static,
     {
         let (input_sender, input_receiver) = bounded::<OwnedRecord>(QUEUE_SIZE);
         let (output_sender, output_receiver) = bounded::<OwnedRecord>(QUEUE_SIZE);
-        
+
         let filter = Arc::clone(&self.filter);
         let stats = Arc::new(Mutex::new(ProcessingStats::new()));
-        
+
         let reader_thread = thread::spawn(move || {
             let reader = crate::stream::StreamingReader::new(input);
             for result in reader {
@@ -444,14 +455,14 @@ impl ParallelFilterProcessor {
                 }
             }
         });
-        
+
         let filter_workers: Vec<_> = (0..self.num_workers)
             .map(|_| {
                 let input_rx = input_receiver.clone();
                 let output_tx = output_sender.clone();
                 let filter = Arc::clone(&filter);
                 let stats = Arc::clone(&stats);
-                
+
                 thread::spawn(move || {
                     while let Ok(record) = input_rx.recv() {
                         let record_ref = record.as_record();
@@ -461,7 +472,7 @@ impl ParallelFilterProcessor {
                             record_ref.seq,
                             record_ref.qual,
                         );
-                        
+
                         if filter.filter(&mut record_mut) {
                             if let Some(trimmed) = filter.trim(&record_mut) {
                                 let owned = OwnedRecord::from_record(&trimmed);
@@ -477,10 +488,10 @@ impl ParallelFilterProcessor {
                 })
             })
             .collect();
-        
+
         drop(input_receiver);
         drop(output_sender);
-        
+
         let writer_thread = thread::spawn(move || {
             let mut output = output;
             while let Ok(record) = output_receiver.recv() {
@@ -491,13 +502,13 @@ impl ParallelFilterProcessor {
                 }
             }
         });
-        
+
         reader_thread.join().unwrap();
         for worker in filter_workers {
             worker.join().unwrap();
         }
         writer_thread.join().unwrap();
-        
+
         let final_stats = stats.lock().unwrap().clone();
         Ok(final_stats)
     }

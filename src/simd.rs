@@ -27,16 +27,16 @@ fn has_avx2() -> bool {
 pub unsafe fn find_newlines_avx2(data: &[u8]) -> Vec<usize> {
     let mut positions = Vec::new();
     let newline = _mm256_set1_epi8(b'\n' as i8);
-    
+
     let chunks = data.chunks_exact(32);
     let remainder = chunks.remainder();
-    
+
     for (chunk_idx, chunk) in chunks.enumerate() {
         let chunk_ptr = chunk.as_ptr() as *const __m256i;
         let vector = _mm256_loadu_si256(chunk_ptr);
         let cmp = _mm256_cmpeq_epi8(vector, newline);
         let mask = _mm256_movemask_epi8(cmp);
-        
+
         if mask != 0 {
             let base = chunk_idx * 32;
             for i in 0..32 {
@@ -46,14 +46,14 @@ pub unsafe fn find_newlines_avx2(data: &[u8]) -> Vec<usize> {
             }
         }
     }
-    
+
     let offset = data.len() - remainder.len();
     for (i, &byte) in remainder.iter().enumerate() {
         if byte == b'\n' {
             positions.push(offset + i);
         }
     }
-    
+
     positions
 }
 
@@ -65,10 +65,10 @@ pub unsafe fn find_newlines_avx2(data: &[u8]) -> Vec<usize> {
 /// The caller must ensure that AVX2 is supported before calling this function.
 pub unsafe fn validate_ascii_avx2(data: &[u8]) -> bool {
     let max_ascii = _mm256_set1_epi8(127);
-    
+
     let chunks = data.chunks_exact(32);
     let remainder = chunks.remainder();
-    
+
     for chunk in chunks {
         let chunk_ptr = chunk.as_ptr() as *const __m256i;
         let vector = _mm256_loadu_si256(chunk_ptr);
@@ -77,7 +77,7 @@ pub unsafe fn validate_ascii_avx2(data: &[u8]) -> bool {
             return false;
         }
     }
-    
+
     remainder.iter().all(|&b| b <= 127)
 }
 
@@ -90,10 +90,10 @@ pub unsafe fn validate_ascii_avx2(data: &[u8]) -> bool {
 pub unsafe fn count_chars_avx2(data: &[u8], target: u8) -> usize {
     let mut count = 0;
     let target_vec = _mm256_set1_epi8(target as i8);
-    
+
     let chunks = data.chunks_exact(32);
     let remainder = chunks.remainder();
-    
+
     for chunk in chunks {
         let chunk_ptr = chunk.as_ptr() as *const __m256i;
         let vector = _mm256_loadu_si256(chunk_ptr);
@@ -101,7 +101,7 @@ pub unsafe fn count_chars_avx2(data: &[u8], target: u8) -> usize {
         let mask = _mm256_movemask_epi8(cmp);
         count += mask.count_ones() as usize;
     }
-    
+
     count + remainder.iter().filter(|&&b| b == target).count()
 }
 
@@ -113,7 +113,7 @@ pub fn find_newlines(data: &[u8]) -> Vec<usize> {
             return unsafe { find_newlines_avx2(data) };
         }
     }
-    
+
     data.iter()
         .enumerate()
         .filter_map(|(i, &b)| if b == b'\n' { Some(i) } else { None })
@@ -128,7 +128,7 @@ pub fn validate_ascii(data: &[u8]) -> bool {
             return unsafe { validate_ascii_avx2(data) };
         }
     }
-    
+
     data.iter().all(|&b| b <= 127)
 }
 
@@ -140,7 +140,7 @@ pub fn count_chars(data: &[u8], target: u8) -> usize {
             return unsafe { count_chars_avx2(data, target) };
         }
     }
-    
+
     bytecount::count(data, target)
 }
 
@@ -153,24 +153,25 @@ pub fn count_chars(data: &[u8], target: u8) -> usize {
 pub unsafe fn find_char_avx2(data: &[u8], target: u8, start: usize) -> Option<usize> {
     let target_vec = _mm256_set1_epi8(target as i8);
     let slice = &data[start..];
-    
+
     let chunks = slice.chunks_exact(32);
     let remainder = chunks.remainder();
-    
+
     for (chunk_idx, chunk) in chunks.enumerate() {
         let chunk_ptr = chunk.as_ptr() as *const __m256i;
         let vector = _mm256_loadu_si256(chunk_ptr);
         let cmp = _mm256_cmpeq_epi8(vector, target_vec);
         let mask = _mm256_movemask_epi8(cmp);
-        
+
         if mask != 0 {
             let offset = mask.trailing_zeros() as usize;
             return Some(start + chunk_idx * 32 + offset);
         }
     }
-    
+
     let remainder_start = slice.len() - remainder.len();
-    remainder.iter()
+    remainder
+        .iter()
         .position(|&b| b == target)
         .map(|i| start + remainder_start + i)
 }
@@ -183,7 +184,7 @@ pub fn find_char(data: &[u8], target: u8, start: usize) -> Option<usize> {
             return unsafe { find_char_avx2(data, target, start) };
         }
     }
-    
+
     memchr::memchr(target, &data[start..]).map(|i| start + i)
 }
 

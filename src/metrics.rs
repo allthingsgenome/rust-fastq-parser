@@ -35,98 +35,106 @@ impl QualityMetrics {
             mean_length: 0.0,
         }
     }
-    
+
     pub fn update(&mut self, record: &mut Record) {
         self.total_reads += 1;
         self.total_bases += record.len();
-        
+
         if record.len() < self.min_length {
             self.min_length = record.len();
         }
         if record.len() > self.max_length {
             self.max_length = record.len();
         }
-        
+
         while self.position_qualities.len() < record.len() {
             self.position_qualities.push(Vec::new());
         }
-        
+
         let phred_scores = record.phred_scores();
         for (pos, &score) in phred_scores.iter().enumerate() {
             self.position_qualities[pos].push(score);
         }
-        
-        let gc_count = record.seq().iter()
+
+        let gc_count = record
+            .seq()
+            .iter()
             .filter(|&&b| b == b'G' || b == b'C' || b == b'g' || b == b'c')
             .count();
         let gc_percent = (gc_count as f64 / record.len() as f64) * 100.0;
         self.gc_content.push(gc_percent);
-        
-        self.n_bases += record.seq().iter()
+
+        self.n_bases += record
+            .seq()
+            .iter()
             .filter(|&&b| b == b'N' || b == b'n')
             .count();
-        
+
         self.duplicate_tracker.add(record.seq());
-        
+
         self.kmer_counter.count_kmers(record.seq());
     }
-    
+
     pub fn finalize(&mut self) {
         self.mean_length = self.total_bases as f64 / self.total_reads as f64;
     }
-    
+
     pub fn position_quality_stats(&self) -> Vec<PositionStats> {
-        self.position_qualities.iter().enumerate().map(|(pos, qualities)| {
-            if qualities.is_empty() {
-                PositionStats {
-                    position: pos,
-                    mean: 0.0,
-                    median: 0,
-                    q25: 0,
-                    q75: 0,
-                    min: 0,
-                    max: 0,
+        self.position_qualities
+            .iter()
+            .enumerate()
+            .map(|(pos, qualities)| {
+                if qualities.is_empty() {
+                    PositionStats {
+                        position: pos,
+                        mean: 0.0,
+                        median: 0,
+                        q25: 0,
+                        q75: 0,
+                        min: 0,
+                        max: 0,
+                    }
+                } else {
+                    let mut sorted = qualities.clone();
+                    sorted.sort_unstable();
+
+                    let mean = sorted.iter().map(|&q| q as f64).sum::<f64>() / sorted.len() as f64;
+                    let median = sorted[sorted.len() / 2];
+                    let q25 = sorted[sorted.len() / 4];
+                    let q75 = sorted[sorted.len() * 3 / 4];
+                    let min = *sorted.first().unwrap();
+                    let max = *sorted.last().unwrap();
+
+                    PositionStats {
+                        position: pos,
+                        mean,
+                        median,
+                        q25,
+                        q75,
+                        min,
+                        max,
+                    }
                 }
-            } else {
-                let mut sorted = qualities.clone();
-                sorted.sort_unstable();
-                
-                let mean = sorted.iter().map(|&q| q as f64).sum::<f64>() / sorted.len() as f64;
-                let median = sorted[sorted.len() / 2];
-                let q25 = sorted[sorted.len() / 4];
-                let q75 = sorted[sorted.len() * 3 / 4];
-                let min = *sorted.first().unwrap();
-                let max = *sorted.last().unwrap();
-                
-                PositionStats {
-                    position: pos,
-                    mean,
-                    median,
-                    q25,
-                    q75,
-                    min,
-                    max,
-                }
-            }
-        }).collect()
+            })
+            .collect()
     }
-    
+
     pub fn duplicate_rate(&self) -> f64 {
         self.duplicate_tracker.duplicate_rate()
     }
-    
+
     pub fn exact_duplicates(&self) -> usize {
         self.duplicate_tracker.exact_duplicates()
     }
-    
+
     pub fn kmer_distribution(&self) -> &HashMap<Vec<u8>, usize> {
         self.kmer_counter.distribution()
     }
-    
+
     pub fn error_kmers(&self, threshold: f64) -> Vec<Vec<u8>> {
         self.kmer_counter.error_kmers(self.total_reads, threshold)
     }
-    
+
     pub fn summary(&self) -> MetricsSummary {
         MetricsSummary {
             total_reads: self.total_reads,
@@ -139,14 +147,16 @@ impl QualityMetrics {
             duplicate_rate: self.duplicate_rate(),
         }
     }
-    
+
     pub fn print_summary(&self) {
         let summary = self.summary();
         println!("Quality Metrics Summary:");
         println!("  Total reads: {}", summary.total_reads);
         println!("  Total bases: {}", summary.total_bases);
-        println!("  Read length: {} - {} (mean: {:.1})",
-                 summary.min_length, summary.max_length, summary.mean_length);
+        println!(
+            "  Read length: {} - {} (mean: {:.1})",
+            summary.min_length, summary.max_length, summary.mean_length
+        );
         println!("  GC content: {:.2}%", summary.mean_gc);
         println!("  N-base percentage: {:.4}%", summary.n_base_percent);
         println!("  Duplicate rate: {:.2}%", summary.duplicate_rate * 100.0);
@@ -194,25 +204,25 @@ impl DuplicateTracker {
             sample_size: 100000,
         }
     }
-    
+
     fn add(&mut self, seq: &[u8]) {
         self.total_count += 1;
-        
+
         if self.use_sampling && self.total_count > self.sample_size {
             return;
         }
-        
+
         if self.seen_sequences.len() > 1000000 && !self.use_sampling {
             self.use_sampling = true;
             self.seen_sequences.clear();
             return;
         }
-        
+
         if !self.seen_sequences.insert(seq.to_vec()) {
             self.duplicate_count += 1;
         }
     }
-    
+
     fn duplicate_rate(&self) -> f64 {
         if self.total_count == 0 {
             0.0
@@ -220,7 +230,7 @@ impl DuplicateTracker {
             self.duplicate_count as f64 / self.total_count as f64
         }
     }
-    
+
     fn exact_duplicates(&self) -> usize {
         self.duplicate_count
     }
@@ -238,24 +248,24 @@ impl KmerCounter {
             counts: HashMap::new(),
         }
     }
-    
+
     fn count_kmers(&mut self, seq: &[u8]) {
         if seq.len() < self.k {
             return;
         }
-        
+
         for window in seq.windows(self.k) {
             *self.counts.entry(window.to_vec()).or_insert(0) += 1;
         }
     }
-    
+
     fn distribution(&self) -> &HashMap<Vec<u8>, usize> {
         &self.counts
     }
-    
+
     fn error_kmers(&self, total_reads: usize, threshold: f64) -> Vec<Vec<u8>> {
         let min_count = (total_reads as f64 * threshold) as usize;
-        
+
         self.counts
             .iter()
             .filter(|(_, &count)| count < min_count)
@@ -284,42 +294,46 @@ impl ErrorDetector {
             error_threshold: 0.001,
         }
     }
-    
+
     pub fn kmer_size(mut self, size: usize) -> Self {
         self.kmer_size = size;
         self
     }
-    
+
     pub fn min_frequency(mut self, freq: usize) -> Self {
         self.min_frequency = freq;
         self
     }
-    
+
     pub fn error_threshold(mut self, threshold: f64) -> Self {
         self.error_threshold = threshold;
         self
     }
-    
-    pub fn detect_errors(&self, seq: &[u8], kmer_counts: &HashMap<Vec<u8>, usize>) -> Vec<ErrorPosition> {
+
+    pub fn detect_errors(
+        &self,
+        seq: &[u8],
+        kmer_counts: &HashMap<Vec<u8>, usize>,
+    ) -> Vec<ErrorPosition> {
         let mut errors = Vec::new();
-        
+
         if seq.len() < self.kmer_size {
             return errors;
         }
-        
+
         for (pos, window) in seq.windows(self.kmer_size).enumerate() {
             let count = kmer_counts.get(window).copied().unwrap_or(0);
-            
+
             if count < self.min_frequency {
                 let mut max_neighbor_count = 0;
                 let mut likely_correction = None;
-                
+
                 for i in 0..self.kmer_size {
                     for base in b"ACGT" {
                         if window[i] != *base {
                             let mut neighbor = window.to_vec();
                             neighbor[i] = *base;
-                            
+
                             if let Some(&neighbor_count) = kmer_counts.get(&neighbor) {
                                 if neighbor_count > max_neighbor_count {
                                     max_neighbor_count = neighbor_count;
@@ -329,7 +343,7 @@ impl ErrorDetector {
                         }
                     }
                 }
-                
+
                 if max_neighbor_count >= self.min_frequency {
                     if let Some((error_pos, correct_base)) = likely_correction {
                         errors.push(ErrorPosition {
@@ -342,7 +356,7 @@ impl ErrorDetector {
                 }
             }
         }
-        
+
         errors
     }
 }
@@ -362,13 +376,13 @@ impl QualityPlotter {
         if stats.is_empty() {
             return String::from("No data to plot");
         }
-        
+
         let max_quality = stats.iter().map(|s| s.max).max().unwrap_or(40) as f64;
         let min_quality = stats.iter().map(|s| s.min).min().unwrap_or(0) as f64;
         let quality_range = max_quality - min_quality;
-        
+
         let mut plot = vec![vec![' '; width]; height];
-        
+
         for (y, row) in plot.iter_mut().enumerate().take(height) {
             let quality = max_quality - (y as f64 * quality_range / (height - 1) as f64);
             let label = format!("{:3.0}", quality);
@@ -379,24 +393,26 @@ impl QualityPlotter {
             }
             row[4] = '|';
         }
-        
+
         for x in 5..width {
             plot[height - 1][x] = '-';
         }
-        
+
         let positions_per_column = stats.len().max(1) / (width - 6).max(1);
-        
+
         for (col, chunk) in stats.chunks(positions_per_column.max(1)).enumerate() {
             if col + 6 >= width {
                 break;
             }
-            
+
             let mean_quality = chunk.iter().map(|s| s.mean).sum::<f64>() / chunk.len() as f64;
             let median_quality = chunk[chunk.len() / 2].median as f64;
-            
-            let mean_y = ((max_quality - mean_quality) * (height - 1) as f64 / quality_range) as usize;
-            let median_y = ((max_quality - median_quality) * (height - 1) as f64 / quality_range) as usize;
-            
+
+            let mean_y =
+                ((max_quality - mean_quality) * (height - 1) as f64 / quality_range) as usize;
+            let median_y =
+                ((max_quality - median_quality) * (height - 1) as f64 / quality_range) as usize;
+
             if mean_y < height {
                 plot[mean_y][col + 6] = '*';
             }
@@ -404,7 +420,7 @@ impl QualityPlotter {
                 plot[median_y][col + 6] = 'o';
             }
         }
-        
+
         let mut result = String::new();
         result.push_str("Quality Score Distribution (* = mean, o = median)\n");
         for row in plot {
@@ -412,7 +428,7 @@ impl QualityPlotter {
             result.push('\n');
         }
         result.push_str("    Position in read →\n");
-        
+
         result
     }
 }
