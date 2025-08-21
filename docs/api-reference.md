@@ -11,6 +11,12 @@ The FASTQ parser provides a high-performance, feature-rich API for parsing FASTQ
 - Zero-copy parsing to minimize allocations
 - Transparent gzip compression support
 - Streaming mode for constant memory usage
+- Paired-end read synchronization
+- Advanced filtering and quality control
+- Barcode/UMI processing and demultiplexing
+- Index-based random access
+- Format conversion (FASTQ to FASTA)
+- Comprehensive quality metrics
 
 ## Core Modules
 
@@ -37,6 +43,24 @@ Comprehensive error handling. Defines error types for all failure modes in the p
 
 ### [mmap](./mmap.md)
 Memory-mapped file I/O. Enables efficient handling of large files without loading them entirely into memory.
+
+### [filter](./filter.md)
+Advanced filtering capabilities. Provides quality filtering, adapter trimming, and content-based filtering with configurable parameters.
+
+### [paired](./paired.md)
+Paired-end read handling. Synchronous iteration through R1/R2 file pairs with ID validation and mismatch detection.
+
+### [writer](./writer.md)
+FASTQ/FASTA writing and format conversion. Efficient output writing with compression support and format conversion utilities.
+
+### [index](./index.md)
+Index-based random access. Build persistent indexes for O(1) lookup of specific reads in large FASTQ files.
+
+### [barcode](./barcode.md)
+Barcode and UMI processing. Extract, demultiplex, and deduplicate reads based on molecular barcodes with error correction.
+
+### [metrics](./metrics.md)
+Quality metrics and analysis. Calculate per-position quality distributions, duplicate rates, and k-mer based error detection.
 
 ## Quick Start Examples
 
@@ -84,6 +108,57 @@ fn process_with_simd(data: &[u8]) {
     
     // Count specific nucleotides
     let a_count = simd::count_chars(data, b'A');
+}
+```
+
+### Paired-End Processing
+
+```rust
+use fastq_parser::PairedEndReader;
+
+fn process_paired_reads(r1: &str, r2: &str) -> Result<()> {
+    let reader = PairedEndReader::from_paths(r1, r2)?;
+    
+    for pair in reader.into_paired_records() {
+        let (read1, read2) = pair?;
+        // Process paired reads together
+    }
+    
+    Ok(())
+}
+```
+
+### Advanced Filtering
+
+```rust
+use fastq_parser::AdvancedFilter;
+
+fn filter_reads(records: impl Iterator<Item = Record>) {
+    let filter = AdvancedFilter::new()
+        .min_length(50)
+        .max_n_ratio(0.1);
+    
+    for record in records {
+        if filter.filter(&record) {
+            // Process passing reads
+        }
+    }
+}
+```
+
+### Barcode Demultiplexing
+
+```rust
+use fastq_parser::{BarcodeConfig, Demultiplexer};
+
+fn demultiplex(records: impl Iterator<Item = Result<OwnedRecord>>) -> Result<()> {
+    let config = BarcodeConfig::new(0, 8);
+    let demux = Demultiplexer::new(config, barcode_map);
+    
+    let stats = demux.demultiplex_to_files(records, "output/", "sample")?;
+    stats.print_summary();
+    
+    Ok(())
 }
 ```
 
@@ -143,5 +218,11 @@ MSRV: 1.70.0
 
 - [Parser Module](./parser.md) - Core parsing implementation
 - [Reader Module](./reader.md) - File I/O operations
+- [Paired Module](./paired.md) - Paired-end read handling
+- [Filter Module](./filter.md) - Advanced filtering
+- [Writer Module](./writer.md) - Output and conversion
+- [Index Module](./index.md) - Random access indexing
+- [Barcode Module](./barcode.md) - Barcode/UMI processing
+- [Metrics Module](./metrics.md) - Quality metrics
 - [Examples](../examples/) - Complete working examples
 - [Benchmarks](../benches/) - Performance benchmarks

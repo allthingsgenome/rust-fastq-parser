@@ -29,6 +29,15 @@ pub enum FastqError {
     
     #[error("Invalid quality character: {qual}")]
     InvalidQuality { qual: u8 },
+    
+    #[error("Paired-end read ID mismatch: R1={r1_id}, R2={r2_id}")]
+    PairedEndMismatch { r1_id: String, r2_id: String },
+    
+    #[error("Paired-end files have different number of reads")]
+    PairedEndLengthMismatch,
+    
+    #[error("Interleaved file has odd number of reads")]
+    InterleavedOddCount,
 }
 
 pub type Result<T> = std::result::Result<T, FastqError>;

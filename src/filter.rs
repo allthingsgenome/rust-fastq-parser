@@ -1,4 +1,6 @@
 use crate::{record::Record, record::QualityEncoding};
+use std::collections::HashSet;
+use regex::Regex;
 
 pub struct QualityFilter {
     min_quality: f64,
@@ -232,12 +234,120 @@ impl AdapterTrimmer {
     }
 }
 
+#[derive(Default)]
+pub struct AdvancedFilter {
+    min_length: Option<usize>,
+    max_length: Option<usize>,
+    max_n_ratio: Option<f64>,
+    max_n_count: Option<usize>,
+    id_whitelist: Option<HashSet<Vec<u8>>>,
+    id_blacklist: Option<HashSet<Vec<u8>>>,
+    id_pattern: Option<Regex>,
+}
+
+impl AdvancedFilter {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    
+    pub fn min_length(mut self, length: usize) -> Self {
+        self.min_length = Some(length);
+        self
+    }
+    
+    pub fn max_length(mut self, length: usize) -> Self {
+        self.max_length = Some(length);
+        self
+    }
+    
+    pub fn max_n_ratio(mut self, ratio: f64) -> Self {
+        self.max_n_ratio = Some(ratio);
+        self
+    }
+    
+    pub fn max_n_count(mut self, count: usize) -> Self {
+        self.max_n_count = Some(count);
+        self
+    }
+    
+    pub fn id_whitelist(mut self, ids: HashSet<Vec<u8>>) -> Self {
+        self.id_whitelist = Some(ids);
+        self
+    }
+    
+    pub fn id_blacklist(mut self, ids: HashSet<Vec<u8>>) -> Self {
+        self.id_blacklist = Some(ids);
+        self
+    }
+    
+    pub fn id_pattern(mut self, pattern: &str) -> Result<Self, regex::Error> {
+        self.id_pattern = Some(Regex::new(pattern)?);
+        Ok(self)
+    }
+    
+    pub fn filter(&self, record: &Record) -> bool {
+        if let Some(min_len) = self.min_length {
+            if record.len() < min_len {
+                return false;
+            }
+        }
+        
+        if let Some(max_len) = self.max_length {
+            if record.len() > max_len {
+                return false;
+            }
+        }
+        
+        let n_count = record.seq().iter().filter(|&&b| b == b'N' || b == b'n').count();
+        
+        if let Some(max_n) = self.max_n_count {
+            if n_count > max_n {
+                return false;
+            }
+        }
+        
+        if let Some(max_ratio) = self.max_n_ratio {
+            let ratio = n_count as f64 / record.len() as f64;
+            if ratio > max_ratio {
+                return false;
+            }
+        }
+        
+        if let Some(ref whitelist) = self.id_whitelist {
+            if !whitelist.contains(record.id()) {
+                return false;
+            }
+        }
+        
+        if let Some(ref blacklist) = self.id_blacklist {
+            if blacklist.contains(record.id()) {
+                return false;
+            }
+        }
+        
+        if let Some(ref pattern) = self.id_pattern {
+            if let Ok(id_str) = record.id_str() {
+                if !pattern.is_match(id_str) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        
+        true
+    }
+}
+
 pub struct FilterStats {
     pub total_reads: usize,
     pub filtered_reads: usize,
     pub trimmed_reads: usize,
     pub adapter_trimmed: usize,
     pub total_bases_removed: usize,
+    pub n_filtered: usize,
+    pub length_filtered: usize,
+    pub id_filtered: usize,
 }
 
 impl Default for FilterStats {
@@ -254,6 +364,9 @@ impl FilterStats {
             trimmed_reads: 0,
             adapter_trimmed: 0,
             total_bases_removed: 0,
+            n_filtered: 0,
+            length_filtered: 0,
+            id_filtered: 0,
         }
     }
     
@@ -265,6 +378,9 @@ impl FilterStats {
                  (self.filtered_reads as f64 / self.total_reads as f64) * 100.0);
         println!("  Trimmed reads: {}", self.trimmed_reads);
         println!("  Adapter trimmed: {}", self.adapter_trimmed);
+        println!("  N-base filtered: {}", self.n_filtered);
+        println!("  Length filtered: {}", self.length_filtered);
+        println!("  ID filtered: {}", self.id_filtered);
         println!("  Total bases removed: {}", self.total_bases_removed);
     }
 }

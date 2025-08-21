@@ -66,6 +66,16 @@ fn main() -> Result<()> {
 }
 ```
 
+### Features
+
+- **Core Parsing**: Blazingly fast FASTQ parsing with SIMD optimization
+- **Paired-End Support**: Synchronous iteration through R1/R2 file pairs
+- **Advanced Filtering**: Filter by length, quality, N-content, and ID patterns
+- **Format Conversion**: FASTQ to FASTA conversion with metadata preservation
+- **Random Access**: Index-based O(1) lookup of specific reads
+- **Barcode/UMI Processing**: Demultiplex and deduplicate molecular barcodes
+- **Quality Metrics**: Per-position quality distributions and duplicate detection
+
 ## Core API
 
 ### Reading & Parsing
@@ -256,6 +266,71 @@ while let Some(record) = reader.next_record()? {
 }
 ```
 
+### Paired-End Read Processing
+
+Handle paired-end sequencing data:
+
+```rust
+use fastq_parser::PairedEndReader;
+
+// Process R1/R2 file pairs
+let paired_reader = PairedEndReader::from_paths("R1.fastq", "R2.fastq")?;
+
+for pair_result in paired_reader.into_paired_records() {
+    let (r1, r2) = pair_result?;
+    // Process paired reads together
+}
+```
+
+### Advanced Filtering
+
+Filter reads based on multiple criteria:
+
+```rust
+use fastq_parser::AdvancedFilter;
+
+let filter = AdvancedFilter::new()
+    .min_length(50)
+    .max_length(300)
+    .max_n_ratio(0.1)
+    .max_n_count(10);
+
+// Apply filter to records
+if filter.filter(&record) {
+    // Process passing reads
+}
+```
+
+### Barcode Processing
+
+Demultiplex and process barcoded reads:
+
+```rust
+use fastq_parser::{BarcodeConfig, Demultiplexer};
+
+let config = BarcodeConfig::new(0, 8)  // 8bp barcode at position 0
+    .with_umi(8, 10)  // 10bp UMI at position 8
+    .max_mismatches(1);
+
+let demux = Demultiplexer::new(config, barcode_map);
+let stats = demux.demultiplex_to_files(records, "output/", "sample")?;
+```
+
+### Index-Based Random Access
+
+Create and use an index for O(1) read lookup:
+
+```rust
+use fastq_parser::{FastqIndex, IndexedReader};
+
+// Build index
+let index = FastqIndex::build("reads.fastq")?;
+index.save("reads.fqi")?;
+
+// Use index for random access
+let reader = IndexedReader::from_paths("reads.fastq", "reads.fqi")?;
+let record = reader.get_record("READ_ID_12345")?;
+
 ## Examples
 
 ### Complete Processing Pipeline
@@ -312,6 +387,9 @@ pixi run cargo run --example streaming
 
 # SIMD operations showcase
 pixi run cargo run --example simd_demo
+
+# Advanced features (filtering, barcodes, metrics)
+pixi run cargo run --example advanced_features
 ```
 
 ## Performance
@@ -369,6 +447,12 @@ Complete API documentation is organized by module:
 | **[buffer](./docs/buffer.md)** | Buffer management | [📖 Docs](./docs/buffer.md) |
 | **[error](./docs/error.md)** | Error handling | [📖 Docs](./docs/error.md) |
 | **[mmap](./docs/mmap.md)** | Memory-mapped I/O | [📖 Docs](./docs/mmap.md) |
+| **paired** | Paired-end read handling | Module Docs |
+| **writer** | FASTQ/FASTA writing & conversion | Module Docs |
+| **filter** | Advanced read filtering | Module Docs |
+| **index** | Index-based random access | Module Docs |
+| **barcode** | Barcode/UMI processing | Module Docs |
+| **metrics** | Quality metrics & analysis | Module Docs |
 
 ### Quick Links to Key Types
 
@@ -422,13 +506,23 @@ fastq-parser/
 │   ├── reader.rs      # File I/O abstractions
 │   ├── buffer.rs      # Buffer management
 │   ├── record.rs      # Record structures
-│   └── error.rs       # Error handling
+│   ├── error.rs       # Error handling
+│   ├── stream.rs      # Streaming support
+│   ├── filter.rs      # Advanced filtering
+│   ├── paired.rs      # Paired-end reads
+│   ├── writer.rs      # Output & conversion
+│   ├── index.rs       # Random access index
+│   ├── barcode.rs     # Barcode/UMI processing
+│   └── metrics.rs     # Quality metrics
 ├── benches/
 │   └── parser_bench.rs # Performance benchmarks
 ├── tests/
-│   └── integration_tests.rs
+│   ├── integration_tests.rs
+│   └── new_features_test.rs
 ├── examples/          # Example usage
+│   └── advanced_features.rs
 ├── docs/             # Module documentation
+├── testdata/         # Test FASTQ files
 ├── Cargo.toml
 ├── pixi.toml         # Pixi environment config
 └── README.md

@@ -7,13 +7,23 @@ pub mod simd;
 pub mod parallel;
 pub mod filter;
 pub mod stream;
+pub mod paired;
+pub mod writer;
+pub mod index;
+pub mod barcode;
+pub mod metrics;
 
 pub use error::{FastqError, Result};
-pub use record::{Record, QualityEncoding};
+pub use record::{Record, QualityEncoding, OwnedRecord};
 pub use parser::{Parser, ParserBuilder};
 pub use reader::{FastqReader, FastqReaderBuilder};
-pub use filter::{QualityFilter, AdapterTrimmer, FilterStats};
+pub use filter::{QualityFilter, AdapterTrimmer, FilterStats, AdvancedFilter};
 pub use stream::{StreamingReader, AsyncStreamingReader, ChunkedStreamer};
+pub use paired::{PairedEndReader, InterleavedReader};
+pub use writer::{FastqWriter, FastaWriter, FormatConverter, SubsetExtractor};
+pub use index::{FastqIndex, IndexedReader, RandomAccessReader};
+pub use barcode::{BarcodeConfig, BarcodeExtractor, Demultiplexer, UmiDeduplicator, BarcodeCorrector};
+pub use metrics::{QualityMetrics, ErrorDetector, QualityPlotter};
 
 #[cfg(test)]
 mod tests {
