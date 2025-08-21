@@ -2,9 +2,12 @@
 name = "fastq-parser"
 version = "0.1.0"
 edition = "2021"
-authors = ["FastQ Parser"]
-description = "Exceptionally fast and elegant FASTQ parser"
+authors = ["Carlos Guzman"]
+description = "Blazingly fast fastq parser"
 license = "MIT"
+repository = "https://github.com/allthingsgenome/rust-fastq-parser"
+homepage = "https://github.com/allthingsgenome/rust-fastq-parser"
+documentation = "https://github.com/allthingsgenome/rust-fastq-parser"
 
 [dependencies]
 memchr = "2.7"
